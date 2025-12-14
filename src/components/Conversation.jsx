@@ -59,12 +59,22 @@ const Conversation = ({ conversationId, currentUserId, onBack }) => {
     websocket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        console.log(data)
 
         if (data.type === "chat_message") {
-          const { message, user, timestamp } = data;
+          const { message, user, timestamp } = data; 
+            let senderObject; 
+            if (user === currentUserId) { 
+                senderObject = { id: currentUserId, username: "You" }; 
+            } else if (chatPartner && user === chatPartner.id) { 
+                senderObject = chatPartner;
+            } else { 
+                senderObject = { id: user, username: `User ${user}` };
+            } 
+
           setMessages((prevMessages) => [
             ...prevMessages,
-            { sender: user, content: message, timestamp },
+            { sender: senderObject, content: message, timestamp },
           ]);
           setTypingUser(null);
         } else if (data.type === "typing") {
@@ -73,11 +83,9 @@ const Conversation = ({ conversationId, currentUserId, onBack }) => {
           if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
           }
-
-          // Only show typing indicator if the current user is the receiver
+ 
           if (receiver === currentUserId && user.id !== currentUserId) {
-            setTypingUser(user);
-            // Set new timeout and store the reference
+            setTypingUser(user); 
             typingTimeoutRef.current = setTimeout(() => {
               setTypingUser(null);
               typingTimeoutRef.current = null;
@@ -85,7 +93,7 @@ const Conversation = ({ conversationId, currentUserId, onBack }) => {
           }
         } else if (data.type === "online_status") {
           if (data.status === "online") {
-            setOnlineUsers((prev) => [...prev, ...data.online_users]);
+            setOnlineUsers((prev) => [...prev, ...data.online_user]);
           } else if (data.status === "offline") {
             setOnlineUsers((prev) =>
               prev.filter((user) => !data.online_users.some((u) => u.id === user.id))
@@ -109,7 +117,7 @@ const Conversation = ({ conversationId, currentUserId, onBack }) => {
       }
       websocket.close();
     };
-  }, []);
+  }, [conversationId, currentUserId, chatPartner]);
 
   const handleSendMessage = () => {
     if (!conversationId || !newMessage.trim()) {
@@ -130,32 +138,37 @@ const Conversation = ({ conversationId, currentUserId, onBack }) => {
       console.error("WebSocket is not open. Message not sent.");
     }
   };
-
-  const handleTyping = () => {
-    if (!chatPartner || socket?.readyState !== WebSocket.OPEN) {
-      console.error("Cannot send typing event: No chat partner or WebSocket is not open.");
-      return;
+ 
+  const handleTypingStart = () => {
+    if (!chatPartner || socket?.readyState !== WebSocket.OPEN) return;
+    const receiverId = chatPartner.id;
+ 
+    if (!typingTimeoutRef.current) {
+        socket.send(
+            JSON.stringify({
+                type: "typing",
+                user: currentUserId,
+                receiver: receiverId,
+                is_typing: true,
+            })
+        );
     }
+     
+    clearTimeout(typingTimeoutRef.current);
+ 
+    typingTimeoutRef.current = setTimeout(() => {
+        socket.send(
+            JSON.stringify({
+                type: "typing",
+                user: currentUserId,
+                receiver: receiverId,
+                is_typing: false,
+            })
+        );
+        typingTimeoutRef.current = null;
+    }, 1500);
+};
 
-    const receiverId = chatPartner.id; // Use chatPartner.id as the receiverId
-
-    console.log(`Sending typing event for receiverId: ${receiverId}`);
-
-    socket.send(
-      JSON.stringify({
-        type: "typing",
-        user: currentUserId, // Current user ID
-        receiver: receiverId, // Receiver ID from chatPartner
-      })
-    );
-  };
-
-  const debouncedHandleTyping = () => {
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    handleTyping();
-  };
 
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
@@ -200,7 +213,8 @@ const Conversation = ({ conversationId, currentUserId, onBack }) => {
           <p>Loading messages...</p>
         ) : (
           messages.map((message, index) => {
-            const isSentByCurrentUser = message.sender?.id === currentUserId;
+            const currentUserIdInt = parseInt(currentUserId);
+            const isSentByCurrentUser = message.sender?.id === currentUserIdInt;
 
             return (
               <div key={index} className={`message-wrapper ${isSentByCurrentUser ? "sent" : "received"}`}>
@@ -239,9 +253,9 @@ const Conversation = ({ conversationId, currentUserId, onBack }) => {
           value={newMessage}
           onChange={(e) => {
             setNewMessage(e.target.value) 
-            debouncedHandleTyping();
+            handleTypingStart();
           }}
-          onKeyDown={handleTyping}
+          // onKeyDown={handleTyping}
           placeholder="Type a message..."
           className="message-input"
         />

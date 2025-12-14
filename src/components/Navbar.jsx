@@ -20,7 +20,7 @@ const Navbar = () => {
   return (
     <nav className="navbar">
       <div className="navbar-container">
-        <Link to='/'  className="navbar-logo-text"><h2>ChitChat</h2></Link>
+        <Link to='/'  className="navbar-logo-text"><h2>MiniChat</h2></Link>
 
         <div className="navbar-icon" onClick={toggleSidebar}>
           ☰

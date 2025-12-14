@@ -71,7 +71,7 @@ const AuthForm = ({ route, method }) => {
                                 id="username" 
                                 value={username} 
                                 onChange={(e) => setUsername(e.target.value)}
-                                placeholder="Joshyvibe" 
+                                placeholder="Enter your username" 
                                 required 
                             />
                         </div>
